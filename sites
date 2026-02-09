@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Realista Arsenal ® | Armas Airsoft & Realistas</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --bg:#0a0a0a;
+  --neon:#00ff41;
+  --font:"Courier New",monospace;
+  --card:#111f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg);
+  color:var(--neon);
+  font-family:var(--font);
+  display:flex;
+  flex-direction:column;
+  min-height:100vh;
+}
+header{
+  padding:1.2rem;
+  border-bottom:2px solid var(--neon);
+  text-align:center;
+  font-size:1.6rem;
+  letter-spacing:4px;
+  text-transform:uppercase;
+}
+#ratebar{
+  position:sticky;
+  top:0;
+  background:#000;
+  border-bottom:1px solid var(--neon);
+  padding:.4rem;
+  text-align:center;
+  font-size:.8rem;
+  z-index:10;
+}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,280px);
+  gap:1.5rem;
+  padding:2rem;
+  justify-content:center;
+  flex:1;
+}
+.card{
+  background:var(--card);
+  border:1px solid var(--neon);
+  border-radius:8px;
+  padding:1rem;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:1rem;
+}
+.spin{
+  width:200px;
+  height:200px;
+  border:3px solid var(--neon);
+  border-radius:50%;
+  background:conic-gradient(var(--neon) 0deg 90deg,#000 90deg 180deg,var(--neon) 180deg 270deg,#000 270deg);
+  animation:rot 2s linear infinite;
+}
+@keyframes rot{to{transform:rotate(360deg)}}
+h3{margin:.8rem 0;font-size:1.2rem;text-transform:uppercase}
+.specs{list-style:none;font-size:.75rem;width:100%;margin:.6rem 0}
+.specs li{display:flex;justify-content:space-between;margin:.2rem 0}
+.price{font-size:1.1rem;margin:.4rem 0}
+.btn{
+  background:var(--neon);
+  color:#000;
+  border:none;
+  padding:.6rem 1.2rem;
+  font-weight:700;
+  cursor:pointer;
+  text-transform:uppercase;
+}
+.btn:hover{filter:brightness(1.3)}
+#cart{
+  position:fixed;
+  right:0;
+  top:0;
+  height:100%;
+  width:300px;
+  background:#000;
+  border-left:2px solid var(--neon);
+  transform:translateX(100%);
+  transition:transform .3s;
+  display:flex;
+  flex-direction:column;
+  padding:1rem;
+}
+#cart.open{transform:translateX(0)}
+#toggle{position:fixed;right:1rem;top:1rem;z-index:20}
+#clist{flex:1;overflow:auto;margin-bottom:1rem}
+#clist li{display:flex;justify-content:space-between;margin:.4rem 0}
+#balance input{width:100%;margin:.4rem 0;padding:.4rem;background:#000;border:1px solid var(--neon);color:var(--neon)}
+#total{font-weight:700;margin:.8rem 0}
+.qr{font-size:.65rem;word-break:break-all;margin-top:.6rem}
+@media(max-width:600px){#cart{width:100%}}
+</style>
+</head>
+<body>
+<header>Realista Arsenal ®</header>
+<div id="ratebar">Carregando cotação…</div>
+<button id="toggle" class="btn">Carrinho</button>
+
+<section class="grid" id="catalog"></section>
+
+<aside id="cart">
+  <h4>Carrinho</h4>
+  <ul id="clist"></ul>
+  <div id="balance">
+    <label>Saldo CP</label>
+    <input type="number" id="bal" value="50" step="0.01">
+  </div>
+  <div id="total">Total: <span id="tot">0.00</span> CP</div>
+  <button class="btn" onclick="checkout()">Pagar com BTC</button>
+  <div class="qr" id="qrcode"></div>
+</aside>
+
+<script>
+/* ========== ESTOQUE REALISTA (USD) ========== */
+const STOCK = [
+  {id:"Glock-19R",name:"Glock-19R Ghost",usd:380,specs:["Comprimento: 185 mm","E RMS: 1.4 J (~380 fps)","Capac: 25 BBs","Peso: 680 g"]},
+  {id:"Taurus-38R",name:"Taurus-38R Rio",usd:310,specs:["Comprimento: 173 mm","E RMS: 1.1 J (~340 fps)","Capac: 6 BBs","Peso: 620 g"]},
+  {id:"Colt-22R",name:"Colt-22R Silenciosa",usd:270,specs:["Comprimento: 198 mm","E RMS: 0.9 J (~310 fps)","Capac: 18 BBs","Supressor: removível"]},
+  {id:"SIG-P322R",name:"SIG-P322R Quad",usd:550,specs:["Comprimento: 180 mm","E RMS: 1.25 J (~360 fps)","Capac: 28 BBs","Burst 4 tiros"]},
+  {id:"Beretta-92R",name:"Beretta-92R Storm",usd:480,specs:["Comprimento: 216 mm","E RMS: 1.3 J (~370 fps)","Capac: 25 BBs","Peso: 920 g"]}
+];
+
+/* ========== VARIÁVEIS GLOBAIS ========== */
+let BTC_USD = 28000;           // fallback
+const cart = [];
+const END_BTC = "1RealistaArsenalFakeAddressForDemoOnly"; // só visual
+
+/* ========== API BINANCE (pública) ========== */
+async function fetchBTC(){
+  try{
+    const r = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT");
+    const j = await r.json();
+    BTC_USD = parseFloat(j.price);
+  }catch(e){}
+}
+fetchBTC();
+setInterval(fetchBTC, 30000);
+
+/* ========== RENDER CATÁLOGO ========== */
+const catalog = document.getElementById('catalog');
+function renderCatalog(){
+  STOCK.forEach(p=>{
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="spin"></div>
+      <h3>${p.name}</h3>
+      <ul class="specs">${p.specs.map(s=>`<li>${s}</li>`).join('')}</ul>
+      <div class="price">USD ${p.usd} · BTC ${(p.usd/BTC_USD).toFixed(8)}</div>
+      <button class="btn" onclick="addCart('${p.id}',${p.usd})">Adicionar</button>
+    `;
+    catalog.appendChild(card);
+  });
+}
+renderCatalog();
+
+/* ========== CARRINHO ========== */
+function gid(id){return document.getElementById(id)}
+function addCart(id,usd){
+  cart.push({id,usd});
+  renderCart();
+}
+function renderCart(){
+  const cl = gid('clist'), totEl = gid('tot');
+  cl.innerHTML = '';
+  let totalUSD = 0;
+  cart.forEach((it,i)=>{
+    const li = document.createElement('li');
+    li.innerHTML = `<span>${it.id}</span><span>${it.usd} USD <button class="btn" style="padding:2px 6px" onclick="removeItem(${i})">x</button></span>`;
+    cl.appendChild(li);
+    totalUSD += it.usd;
+  });
+  totEl.textContent = totalUSD.toFixed(2);
+}
+function removeItem(i){ cart.splice(i,1); renderCart(); }
+
+/* ========== CHECKOUT CRIPTO ========== */
+function checkout(){
+  const bal = parseFloat(gid('bal').value);
+  const totalUSD = cart.reduce((s,it)=>s+it.usd,0);
+  const totalCP = totalUSD;          // 1 USD = 1 CP (exemplo)
+  if(totalCP > bal){ alert('Saldo CP insuficiente'); return; }
+
+  // debita CP
+  gid('bal').value = (bal - totalCP).toFixed(2);
+
+  // gera QR textual
+  const btcTotal = (totalUSD/BTC_USD).toFixed(8);
+  const qr = `Envie exatamente ${btcTotal} BTC para:\n${END_BTC}\n\nApós 1 confirmação o drone decola!`;
+  gid('qrcode').textContent = qr;
+
+  // limpa carrinho
+  cart.length = 0; renderCart();
+}
+
+/* ========== BARRA DE COTAÇÃO ========== */
+function updateBar(){
+  const bar = gid('ratebar');
+  bar.textContent = `BTC: ${BTC_USD.toLocaleString('en-US')} | Atualizado: ${new Date().toLocaleTimeString('pt-BR')}`;
+}
+setInterval(updateBar,1000);
+updateBar();
+
+/* ========== ABRE/FECHA CARRINHO ========== */
+gid('toggle').onclick = ()=> gid('cart').classList.toggle('open');
+</script>
+</body>
+</html>
